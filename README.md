@@ -1,13 +1,13 @@
 # Custom Common Kernel
 
 ### Changes:
-* Shipped with KernelSU Next, integrated via scope-minimized manual hooks.
+* Shipped with KernelSU Next integrated via scope-minimized manual hooks.
 
 If you're looking for a Kprobes one, [go here](https://github.com/reddxae/kernel_samsung_sm8550-common-ksu/tree/kprobes).
 
 Builds are done by [a workflow](.github/workflows/build-kernel.yml). I've also reuploaded some useful stuff to a local repo for convenience. You can find those files [here](.github/goodies).
 
-### Credits:  
+### Credits:
 * [@edgars-cirulis](https://github.com/edgars-cirulis) for the kernel source.
 * [@rifsxd](https://github.com/rifsxd) for [KernelSU Next](https://github.com/KernelSU-Next/KernelSU-Next).
 * [@backslashxx](https://github.com/backslashxx) for [scope-minimized manual KernelSU hooks](https://github.com/backslashxx/KernelSU/issues/5).
