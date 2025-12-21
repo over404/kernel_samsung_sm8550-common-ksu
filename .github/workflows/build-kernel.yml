@@ -1,4 +1,4 @@
-name: Build kernel (KSU Next, scope-minimized manual hooks)
+name: Build kernel and integrate KSU Next via scope-minimized manual hooks
 on:
   workflow_dispatch:
 
@@ -22,9 +22,9 @@ jobs:
 
       - name: Clone source
         run: |
-          git clone --depth=1 -b android13-5.15 https://github.com/reddxae/kernel_samsung_sm8550-common-ksu.git
+          git clone --depth=1 -b manual https://github.com/reddxae/kernel_samsung_sm8550-common-ksu.git
 
-          # Clone only necessary version of the AOSP Clang (critically saves time and space!)
+          # Clone only necessary version of the AOSP Clang (critically saves time and free space!)
           curl -L -o clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/ebcc6c3bef363bc539ea39f45b6abae1dce6ff1a/clang-r574158.tar.gz
           mkdir clang
           tar -xf clang.tar.gz -C clang
@@ -37,8 +37,9 @@ jobs:
           # Determine the tag of the latest release of KernelSU Next
           echo "KSU_VERSION=$(curl -s "https://api.github.com/repos/KernelSU-Next/KernelSU-Next/tags" | jq -r '.[0].name')" >> $GITHUB_ENV
 
-          # Integrate the latest release of KernelSU Next into the source
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          # Integrate the latest stable KernelSU Next into the source
+          # Only the `legacy` branch supports manual hooking; in fact, that's the only difference from `stable`, so let's use it!
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/stable/kernel/setup.sh" | bash -s legacy
 
           # Integrate scope-minimized manual KernelSU hooks via a patch
           cp .github/goodies/scope_min_manual_hooks_v1.6.patch .
@@ -77,5 +78,5 @@ jobs:
       - name: Upload the flashable kernel
         uses: actions/upload-artifact@v4
         with:
-          name: common-${{ env.KERNEL_VERSION }}_ksunext-${{ env.KSU_VERSION }}_${{ env.DATE }}
+          name: common-${{ env.KERNEL_VERSION }}_ksunext-${{ env.KSU_VERSION }}-manual_${{ env.DATE }}
           path: AnyKernel3/
