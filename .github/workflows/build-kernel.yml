@@ -1,4 +1,4 @@
-name: Build kernel and integrate KSU Next via Kprobes
+name: Build kernel and integrate KSU Next
 on:
   workflow_dispatch:
 
