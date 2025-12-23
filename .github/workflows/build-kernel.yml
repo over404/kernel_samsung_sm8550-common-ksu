@@ -22,23 +22,25 @@ jobs:
 
       - name: Clone source
         run: |
-          git clone --depth=1 -b kprobes https://github.com/reddxae/kernel_samsung_sm8550-common-ksu.git
+          git clone --depth=1 -b experimental https://github.com/reddxae/kernel_samsung_sm8550-common-ksu.git
 
-          # Clone only necessary version of the AOSP Clang (critically saves time and free space!)
+          # Only clone the necessary version of the AOSP Clang (significantly saves time and free space)
           curl -L -o clang.tar.gz https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/ebcc6c3bef363bc539ea39f45b6abae1dce6ff1a/clang-r574158.tar.gz
-          mkdir clang
-          tar -xf clang.tar.gz -C clang
+          mkdir clang-toolchain
+          tar -xf clang.tar.gz -C clang-toolchain
           rm clang.tar.gz
 
       - name: Integrate KernelSU Next
         run: |
           cd kernel_samsung_sm8550-common-ksu
 
-          # Determine the tag of the latest release of KernelSU Next
-          echo "KSU_VERSION=$(curl -s "https://api.github.com/repos/KernelSU-Next/KernelSU-Next/tags" | jq -r '.[0].name')" >> $GITHUB_ENV
+          # Integrate the KernelSU Next development branch into the source
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/stable/kernel/setup.sh" | bash -s dev
 
-          # Integrate the latest stable KernelSU Next into the source
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/stable/kernel/setup.sh" | bash -s stable
+          # Calculate the current version of KernelSU Next by counting the commits
+          cd KernelSU-Next
+          COMMIT_VALUE=$(git rev-list --count HEAD)
+          echo "KSU_VERSION=$((30000 + ${COMMIT_VALUE:-0}))" >> $GITHUB_ENV
 
       - name: Set up swap space
         uses: pierotofy/set-swap-space@master
@@ -48,7 +50,7 @@ jobs:
       - name: Build the kernel
         run: |
           # Add AOSP Clang to local PATH
-          export PATH="$(pwd)/clang/bin:$PATH"
+          export PATH="$(pwd)/clang-toolchain/bin:$PATH"
 
           cd kernel_samsung_sm8550-common-ksu
 
@@ -73,5 +75,5 @@ jobs:
       - name: Upload the flashable kernel
         uses: actions/upload-artifact@v4
         with:
-          name: common-${{ env.KERNEL_VERSION }}_ksunext-${{ env.KSU_VERSION }}_${{ env.DATE }}
+          name: common-${{ env.KERNEL_VERSION }}_ksunext-dev-${{ env.KSU_VERSION }}_${{ env.DATE }}
           path: AnyKernel3/
