@@ -1,0 +1,87 @@
+name: Build
+run-name: Build kernel & integrate backslashxx's KernelSU fork
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone source
+        uses: actions/checkout@v6
+        with:
+          ref: ksuxx  # Use the relevant branch
+          fetch-depth: '1'
+
+      - name: Set up the toolchain
+        run: |
+          sudo apt update
+          sudo apt install -y --no-install-recommends \
+            bc bison build-essential curl flex \
+            g++-multilib gcc-multilib git gnupg \
+            lib32readline-dev lib32z1-dev \
+            libelf-dev liblz4-tool libssl-dev \
+            lzop zlib1g-dev pahole dwarves cpio zip \
+            python3 python-is-python3 tar perl lz4 jq
+
+          # The AOSP Clang version currently in use is r574158
+          curl -sSfL --retry 3 --connect-timeout 10 \
+            -o clang.tar.gz \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/mirror-goog-main-llvm-toolchain-source/clang-r574158.tar.gz" || \
+            { echo "ERROR: Failed to download AOSP Clang! Aborting."; exit 1; }
+          mkdir clang-toolchain
+          tar -xf clang.tar.gz -C clang-toolchain
+          rm clang.tar.gz
+
+      - name: Integrate KernelSU and apply the manual hooking patches
+        run: |
+          # Determine the tag of the latest backslashxx's KernelSU fork release
+          KSU_TAG=$(curl -sf "https://api.github.com/repos/backslashxx/KernelSU/releases/latest" | jq -e -r .tag_name) || {
+            echo "ERROR: Failed to fetch KernelSU tag! Aborting."
+            exit 1
+          }
+          echo "KSU_TAG=$KSU_TAG" >> $GITHUB_ENV
+
+          # Integrate the latest release of backslashxx's KernelSU fork into the source
+          (curl -sSfL --retry 3 --connect-timeout 5 \
+            "https://raw.githubusercontent.com/backslashxx/KernelSU/$KSU_TAG/kernel/setup.sh" || \
+            { echo "ERROR: Failed to retrieve the KernelSU setup script! Aborting." >&2; exit 1; }) | \
+            bash -s $KSU_TAG
+
+          # Apply scope-minimized manual KernelSU hooks (including security hooks) via patches
+          patch -p1 < .github/goodies/scope_min_manual_hooks_v1.6.patch
+          patch -p1 < .github/goodies/manual_security_hooks_v1.7.patch
+
+      - name: Set up swap space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 16
+
+      - name: Compile the kernel
+        run: |
+          # Add AOSP Clang to local PATH
+          export PATH="$GITHUB_WORKSPACE/clang-toolchain/bin:$PATH"
+
+          # Determine the current kernel version
+          echo "KERNEL_VERSION=$(make kernelversion | awk '/^[0-9]/ {print $1}')" >> $GITHUB_ENV
+
+          # Get the current date
+          echo "DATE=$(date +%Y%m%d)" >> $GITHUB_ENV
+
+          # Generate configuration
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 gki_defconfig || exit 1
+
+          # Run make
+          make -j$(nproc --all) O=out ARCH=arm64 CC=clang LD=ld.lld LLVM=1 LLVM_IAS=1 || exit 1
+
+      - name: Package image with AnyKernel3  # Avoid zipping, as `upload-artifact` handles compression automatically
+        run: |
+          cp .github/goodies/AnyKernel3.zip .
+          unzip AnyKernel3.zip -d AnyKernel3/
+          cp out/arch/arm64/boot/Image.gz AnyKernel3/
+
+      - name: Upload the flashable kernel
+        uses: actions/upload-artifact@v4
+        with:
+          name: common-${{ env.KERNEL_VERSION }}_ksuxx-${{ env.KSU_TAG }}_${{ env.DATE }}
+          path: AnyKernel3/
