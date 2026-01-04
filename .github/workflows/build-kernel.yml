@@ -82,3 +82,15 @@ jobs:
         with:
           name: common-${{ env.KERNEL_VERSION }}_ksun-dev-${{ env.KSU_VERSION }}-kprobes_${{ env.DATE }}
           path: AnyKernel3/
+          
+      - name: Create GitHub Release and upload asset
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: experimental_build-${{ github.run_id }} 
+          target_commitish: ${{ github.sha }}
+          name: "SukiSU Kernel Build by ${{ github.repository }}"
+          generate_release_notes: true
+          files: ${{ steps.package.outputs.zip_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
